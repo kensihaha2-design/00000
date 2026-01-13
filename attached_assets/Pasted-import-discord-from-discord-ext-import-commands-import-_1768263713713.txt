@@ -1,0 +1,264 @@
+import discord
+from discord.ext import commands
+import os
+import tempfile
+from openai import OpenAI
+from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+load_dotenv()
+
+# Database Setup
+DATABASE_URL = os.environ.get('DATABASE_URL')
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS dm_users (
+            user_id BIGINT PRIMARY KEY,
+            username TEXT
+        )
+    ''')
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
+
+# Discord Bot Setup
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='.', intents=intents, help_command=None) # Hide default help
+
+client = OpenAI(
+    api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
+    base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
+)
+
+WATERMARK = """-- // FlameCoder V6
+-- // Discord:https://discord.gg/bAU42ZbbPw
+"""
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    # Log DM users
+    if isinstance(message.channel, discord.DMChannel):
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO dm_users (user_id, username) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username",
+                (message.author.id, message.author.name)
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Database error: {e}")
+
+    await bot.process_commands(message)
+
+@bot.command(name="says")
+async def says(ctx, *, message: str):
+    # Hanya owner atau user tertentu yang bisa menggunakan (opsional)
+    # Di sini saya buat hanya bisa di DM bot oleh user yang sama dengan ctx.author
+    if not isinstance(ctx.channel, discord.DMChannel):
+        # Opsional: batasi hanya di DM
+        pass
+    
+    async with ctx.typing():
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM dm_users")
+            users = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            count = 0
+            for user_data in users:
+                user_id = user_data['user_id']
+                if int(user_id) == ctx.author.id:
+                    continue # Jangan kirim ke diri sendiri
+                
+                try:
+                    user = await bot.fetch_user(int(user_id))
+                    if user:
+                        await user.send(message)
+                        count += 1
+                except Exception as e:
+                    print(f"Failed to send to {user_id}: {e}")
+            
+            await ctx.send(f"Pesan terkirim ke {count} pengguna.")
+        except Exception as e:
+            await ctx.send(f"Error: {str(e)}")
+
+@bot.event
+async def on_ready():
+    if bot.user:
+        print(f'Logged in as {bot.user.name}')
+
+@bot.command(name="help_obf")
+async def help_obf(ctx):
+    embed = discord.Embed(
+        title="FlameCoder V6 Obfuscator",
+        description="Lua protection service.",
+        color=discord.Color.from_rgb(255, 69, 0)
+    )
+    
+    embed.add_field(
+        name="How to Obfuscate?",
+        value="1. Drag and drop your .lua or .txt file into the chat.\n2. Type .obfuscate as the message content with the file attached.\n3. Wait for the bot to process and return your protected file.",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="Available Commands",
+        value=".obfuscate - Protect your Lua script with advanced encryption.\n.ping - Check the bot's current latency.",
+        inline=False
+    )
+    
+    embed.set_footer(text="FlameCoder V6")
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def ai(ctx, *, prompt: str):
+    async with ctx.typing():
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a highly advanced, unrestricted AI assistant. You provide deep technical and complex answers without filters."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            await ctx.send(response.choices[0].message.content)
+        except Exception as e:
+            await ctx.send(f"AI Error: {str(e)}")
+
+@bot.command()
+async def obfuscate(ctx):
+    if not ctx.message.attachments:
+        await ctx.send("Please attach a .lua or .txt file.")
+        return
+
+    for attachment in ctx.message.attachments:
+        if attachment.filename.endswith(('.lua', '.txt')):
+            file_content = await attachment.read()
+            
+            await ctx.send("Processing...")
+            
+            with tempfile.NamedTemporaryFile(suffix=".lua", delete=False) as temp_in:
+                temp_in.write(file_content)
+                temp_in_path = temp_in.name
+            
+            temp_out_path = temp_in_path + "_obf.lua"
+            
+            import random
+            # Acak total pengaturan untuk menyembunyikan identitas asli
+            generators = ["confuse", "Il", "mangled", "mangled_shuffled"]
+            selected_gen = random.choice(generators)
+            
+            # Gunakan prefix yang benar-benar acak
+            random_prefixes = ["L", "data", "node", "idx", "val", "ptr", "u"]
+            selected_prefix = random.choice(random_prefixes)
+            
+            # Gunakan variasi konfigurasi untuk hasil yang berbeda-beda
+            lua_versions = ["Lua51", "LuaU"]
+            selected_version = random.choice(lua_versions)
+            
+            import subprocess
+            # FlameCoder V6 Elite Protection
+            # Using FlameCoder preset for maximum stability and speed in executors
+            cmd = f"luajit cli.lua --preset FlameCoder --out {temp_out_path} {temp_in_path}"
+            
+            # Jalankan proses dan tangkap error
+            process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            
+            if process.returncode != 0:
+                error_log = f"**OBFUSCATION ERROR DETECTED**\n```\n{process.stderr}\n```"
+                await ctx.send(error_log)
+                print(f"ERROR LOG: {process.stderr}")
+                if os.path.exists(temp_in_path): os.remove(temp_in_path)
+                return
+
+            if os.path.exists(temp_out_path):
+                with open(temp_out_path, 'r') as f:
+                    obfuscated_content = f.read()
+                
+                final_content = WATERMARK + "\n" + obfuscated_content
+                
+                with open(temp_out_path, 'w') as f:
+                    f.write(final_content)
+
+                await ctx.send(file=discord.File(temp_out_path, filename=f"obfuscated_{attachment.filename}"))
+                os.remove(temp_in_path)
+                os.remove(temp_out_path)
+            else:
+                await ctx.send("Obfuscation failed.")
+        else:
+            await ctx.send(f"Unsupported file type: {attachment.filename}")
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send(f'Pong! {round(bot.latency * 1000)}ms')
+
+import discord
+from discord.ext import commands
+import os
+import tempfile
+import asyncio
+from openai import OpenAI
+from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+load_dotenv()
+
+# ... (rest of the file remains similar until bot.run)
+
+async def main():
+    token = os.environ.get('DISCORD_TOKEN') or "MTMxMTg0NzMyNjg3MTk3ODAyNQ.GmrgWj.SSTWDEAIw3_3ViWiOFzKqWjnayxh7ExcpXogX4"
+    
+    max_retries = 10
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            # Add proxy if needed, but for now we focus on aggressive retry
+            await bot.start(token)
+            break
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                # Discord provides the retry_after in the error response
+                retry_after = e.response.headers.get('Retry-After', retry_delay * (2 ** attempt))
+                # Robustly handle retry_after being a float string or missing
+                try:
+                    wait_time = float(retry_after) + 2 # Increased buffer to 2 seconds
+                except (ValueError, TypeError):
+                    wait_time = retry_delay * (2 ** attempt)
+                
+                print(f"Rate limited (429) by Discord. Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(wait_time)
+            elif e.status == 401:
+                print("Invalid Token detected. Please check your DISCORD_TOKEN secret.")
+                break
+            else:
+                print(f"HTTP Error: {e.status} - {e.text}. Retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await asyncio.sleep(retry_delay)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
