@@ -1,0 +1,106 @@
+KONTEKS PENTING (WAJIB DIBACA):
+Saya menggunakan fork Prometheus Lua Obfuscator.
+Saat ini hasil obfuscation MASIH bisa di-dump penuh oleh UnveilR / threaded
+menggunakan hook setmetatable + __index string logger.
+
+BUKTI:
+Semua string literal ("CoreGui", "new", "ImageButton", dll)
+masih bocor di runtime melalui __index.
+
+INI BUKAN PERMINTAAN UNTUK:
+- menghapus anti-dump
+- mematikan AntiTamper
+- menyederhanakan obfuscation
+- membuat sistem baru
+- membuat file baru
+
+INI PERMINTAAN UNTUK:
+MENINGKATKAN KEAMANAN PROMETHEUS YANG SUDAH ADA.
+
+------------------------------------------------
+
+ATURAN KETAT (JIKA DILANGGAR = SALAH):
+- JANGAN membuat file baru
+- JANGAN menghapus step Prometheus
+- JANGAN menonaktifkan AntiTamper / VM
+- JANGAN rename file
+- JANGAN mengubah interface publik Prometheus
+- SEMUA perubahan HARUS di file yang sudah ada
+
+FILE YANG BOLEH DIEDIT SAJA:
+1) src/prometheus/runtime/runtime.lua
+2) src/prometheus/steps/EncryptStrings.lua
+3) src/prometheus/steps/WrapInFunction.lua
+4) src/prometheus/steps/AntiTamper.lua
+5) src/prometheus/steps/Vmify.lua (opsional, jika perlu)
+
+------------------------------------------------
+
+MASALAH TEKNIS UTAMA:
+1) Prometheus masih menggunakan setmetatable global (mudah di-hook)
+2) __index masih mengembalikan STRING literal
+3) String masih muncul di runtime sebelum VM barrier
+4) AntiTamper hanya mendeteksi, belum mencegah kebocoran
+
+------------------------------------------------
+
+TUGAS WAJIB (SEMUA HARUS ADA):
+
+A. HARDEN setmetatable (WAJIB)
+- Cache native setmetatable ke local variable
+- Runtime TIDAK BOLEH memanggil setmetatable global
+- Gunakan hanya reference lokal (anti hook)
+
+B. ANTI __index STRING LEAK (INTI MASALAH)
+- __index TIDAK BOLEH mengembalikan string literal dalam kondisi apa pun
+- Jika __index dipakai:
+  - return function
+  - return number
+  - return userdata
+- String HARUS dihasilkan:
+  - lewat function closure
+  - atau lewat VM opcode
+  - atau lewat decrypt function
+- BUKAN return langsung
+
+C. STRING FLOW REWORK (WAJIB)
+- String literal TIDAK BOLEH muncul di AST runtime
+- Semua string:
+  - dienkripsi di EncryptStrings.lua
+  - di-decrypt hanya saat benar-benar dipakai
+- Jangan simpan hasil decrypt di variable global / table
+
+D. METATABLE LOCK & TAMPER CHECK
+- Tambahkan __metatable lock
+- Deteksi jika Meta.__index diganti setelah wrapping
+- Jika dimodifikasi runtime → trigger tamper fail
+
+E. ANTI setmetatable HOOK DETECTION (TAMBAHAN)
+- Verifikasi debug.getinfo(setmetatable).what == "C"
+- Jika gagal → abort (tanpa print)
+
+F. KOMPATIBILITAS ROBLOX LUAU
+- Jangan memanggil debug.getupvalue dengan index statis
+- Gunakan loop aman / pcall
+- Jangan menyebabkan getupvalue Invalid index
+
+------------------------------------------------
+
+HAL YANG DILARANG KERAS:
+- Jangan menghapus EncryptStrings
+- Jangan mengubah output agar readable
+- Jangan memindahkan string ke plain table
+- Jangan menambahkan print / warning
+- Jangan membuat file helper baru
+
+------------------------------------------------
+
+HASIL AKHIR YANG DIHARAPKAN:
+- UnveilR / threaded TIDAK bisa log string
+- Hook setmetatable tidak bisa intercept __index
+- Runtime tetap bisa dieksekusi normal di Roblox
+- Obfuscation lebih berat tetapi aman
+- Tidak ada string plaintext di dump
+
+INI ADALAH SECURITY HARDENING,
+BUKAN REFACTOR ATAU REWRITE.

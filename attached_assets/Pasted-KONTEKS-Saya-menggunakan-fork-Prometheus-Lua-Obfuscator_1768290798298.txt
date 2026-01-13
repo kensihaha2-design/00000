@@ -1,0 +1,70 @@
+KONTEKS:
+Saya menggunakan fork Prometheus Lua Obfuscator.
+JANGAN membuat file baru.
+JANGAN mengubah arsitektur folder.
+JANGAN menambahkan modul eksternal.
+JANGAN memindahkan logic ke file lain.
+
+TUJUAN UTAMA:
+Perkuat anti-dump terhadap:
+- hook setmetatable
+- env logger
+- threaded / unveilr style dumping
+- metatable hijack (__index wrapper)
+
+SEMUA PERUBAHAN HARUS:
+- berada DI DALAM file Prometheus yang SUDAH ADA
+- tidak merusak output runtime Lua (script masih bisa dieksekusi)
+- tidak menggunakan loadstring tambahan
+- tidak menambah dependency
+
+FILE YANG BOLEH DIEDIT SAJA:
+1) src/prometheus/steps/AntiTamper.lua
+2) src/prometheus/steps/WrapInFunction.lua
+3) src/prometheus/steps/Vmify.lua (opsional, hanya jika perlu)
+4) src/prometheus/runtime/runtime.lua
+
+FOKUS PERUBAHAN TEKNIS:
+
+A. Anti setmetatable hook
+- Cache native setmetatable ke local variable
+- Verifikasi debug.getinfo(setmetatable).what == "C"
+- Jika terdeteksi bukan C function, trigger tamper fail
+
+B. Anti __index hijack
+- Deteksi perubahan Meta.__index setelah wrapping
+- Tambahkan checksum atau tostring(__index) verification
+- Jika Meta.__index dimodifikasi runtime, hentikan eksekusi
+
+C. Anti string leak
+- Pastikan __index TIDAK pernah return string literal
+- String harus:
+  - terenkripsi
+  - atau di-generate runtime
+  - atau diakses via function closure
+
+D. Metatable lock
+- Tambahkan __metatable = false / locked
+- Pastikan dumper tidak bisa inspect metatable
+
+E. Honeytoken anti dumper
+- Tambahkan key jebakan (__DUMP__, __THREAD__, __UNVEIL__)
+- Jika key tersebut diakses → infinite loop / crash aman
+
+F. Anti env logger
+- Validasi getfenv/setfenv tidak di-hook
+- Validasi _G tidak di-wrap
+- Jika env berubah, abort
+
+ATURAN KETAT:
+- JANGAN membuat file baru
+- JANGAN rename file
+- JANGAN menambah step baru
+- JANGAN mengubah interface public Prometheus
+- JANGAN output debug print
+- JANGAN merusak obfuscation compatibility
+
+HASIL AKHIR:
+- Script Prometheus TIDAK bisa di dump oleh threaded / unveilr
+- Hook setmetatable TIDAK bisa membaca string
+- Obfuscation tetap berjalan normal

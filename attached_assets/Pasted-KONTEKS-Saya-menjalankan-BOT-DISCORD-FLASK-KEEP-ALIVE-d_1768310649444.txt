@@ -1,0 +1,108 @@
+KONTEKS:
+Saya menjalankan BOT DISCORD + FLASK KEEP-ALIVE di REPLIT.
+Bot sering MATI / OFFLINE walaupun tidak error.
+Ping Discord mencapai ±290ms (normal), tetapi process tetap di-kill.
+
+INI BUKAN MASALAH OBFSUCATION.
+INI MASALAH STABILITAS RUNTIME DI REPLIT.
+
+------------------------------------------------
+
+ATURAN KETAT:
+- JANGAN menghapus fitur bot
+- JANGAN mengubah logic command
+- JANGAN menambahkan fitur baru
+- JANGAN membuat file baru
+- JANGAN memindahkan bot ke platform lain
+- JANGAN menghilangkan Flask
+- Fokus HANYA ke STABILITAS & KEEP-ALIVE
+
+------------------------------------------------
+
+TUJUAN UTAMA:
+1) Bot Discord TIDAK mati
+2) Flask tetap aktif
+3) Tidak kena sleep / process kill Replit
+4) Tidak overload CPU / memory
+5) Heartbeat Discord STABIL
+
+------------------------------------------------
+
+FILE YANG BOLEH DIEDIT:
+- main.py (atau file utama bot)
+
+------------------------------------------------
+
+MASALAH TEKNIS YANG HARUS DITANGANI:
+
+A. REPLIT SLEEP / PROCESS KILL
+- Replit akan mematikan container jika:
+  - event loop idle
+  - CPU spike
+  - blocking call
+  - thread tidak aman
+
+B. DISCORD HEARTBEAT TIMEOUT
+- Ping tinggi BUKAN penyebab utama
+- Heartbeat miss karena event loop terblokir
+
+------------------------------------------------
+
+TUGAS WAJIB (SEMUA HARUS ADA):
+
+A. STRUKTUR RUNTIME YANG BENAR
+- Discord bot HARUS berjalan di main thread
+- Flask HARUS di thread daemon terpisah
+- Flask TIDAK BOLEH blocking event loop Discord
+
+Contoh struktur WAJIB:
+1) start Flask thread
+2) bot.run(TOKEN)
+
+B. FLASK KEEP-ALIVE YANG AMAN
+- Flask hanya untuk respond request
+- TIDAK ada loop di Flask
+- debug=False
+- logging minimal
+
+C. SELF-PING YANG AMAN
+- Self-ping MAX 1x setiap 300 detik (5 menit)
+- Tidak multi-thread ping
+- Tidak async spam
+- Gunakan try/except
+
+D. DISCORD HEARTBEAT STABIL
+- Set heartbeat_timeout minimal 120 detik
+- Pastikan tidak ada blocking code di on_ready / event
+
+E. HAPUS PEMBUNUH BOT (WAJIB DICEK)
+- Tidak ada while True tanpa sleep
+- Tidak ada infinite asyncio task
+- Tidak ada blocking requests di event Discord
+- Tidak reconnect bot manual
+
+F. MEMORY & CPU SAFE
+- Tidak membuat thread berulang
+- Tidak spawn task tanpa cleanup
+- Tidak logging spam
+
+------------------------------------------------
+
+HAL YANG DILARANG KERAS:
+- Jangan bilang "ping besar penyebab mati"
+- Jangan disable Flask
+- Jangan disable self-ping
+- Jangan ubah ke webhook
+- Jangan rewrite ke sistem baru
+
+------------------------------------------------
+
+HASIL AKHIR YANG DIHARAPKAN:
+- Bot Discord tetap ONLINE berjam-jam / berhari-hari
+- Flask tetap hidup
+- Tidak mati karena idle
+- Tidak reconnect loop
+- Tidak crash tanpa error
+
+INI ADALAH STABILISASI REPLIT,
+BUKAN UPGRADE FITUR.
