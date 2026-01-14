@@ -71,14 +71,34 @@ function AntiDump:apply(ast, pipeline)
                 if _debug and _debug.getinfo then
                     local ok, info = _pcall(_debug.getinfo, _pcall)
                     if ok and info and info.what ~= "C" then _poisoned = true end
+                    
+                    -- Anti-Hook Detection for setmetatable, getmetatable, etc.
+                    local sensitive = {setmetatable, getmetatable, pcall, error, type, getfenv, setfenv, loadstring, pairs, ipairs}
+                    for _, f in ipairs(sensitive) do
+                        local ok, sinfo = _pcall(_debug.getinfo, f)
+                        if ok and sinfo and sinfo.what ~= "C" then _poisoned = true end
+                    end
                 end
                 if getgenv then
                     local ok, env = _pcall(getgenv)
-                    if ok and env and (env.hookfunction or env.getgc) then _poisoned = true end
+                    if ok and env and (env.hookfunction or env.getgc or env.hookmetamethod or env.replaceclosure or env.checkclosure) then _poisoned = true end
+                end
+                
+                -- Check for common dumper global pollution
+                if _G.UnveilR or _G.unveil or _G._DUMP or _G.dump_script then _poisoned = true end
+            end
+
+            -- Memory Poisoning: Luajit/LuaU specific garbage collection trap
+            local function _mem_trap()
+                if _poisoned then 
+                    local junk = {}
+                    for i = 1, 100000 do junk[i] = _trap() end
+                    while true do end 
                 end
             end
 
             _pcall(_monitor)
+            _pcall(_mem_trap)
             -- Hello World FlameCoder in ByteStream
             _ghost_exec({112, 114, 105, 110, 116, 40, 34, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 32, 70, 108, 97, 109, 101, 67, 111, 100, 101, 114, 34, 41})
         end
