@@ -64,6 +64,14 @@ function AntiTamper:apply(ast, pipeline)
         if _debug and _debug.getinfo(getmetatable).what ~= "C" then err() end
         if _debug and _debug.getinfo(pcall).what ~= "C" then err() end
         if _debug and _debug.getinfo(type).what ~= "C" then err() end
+        if _debug and _debug.getinfo(error).what ~= "C" then err() end
+        if _debug and _debug.getinfo(debug.getinfo).what ~= "C" then err() end
+
+        -- Anti Hookfunction / detour bypass
+        local function secure_call(f, ...)
+            if _debug and _debug.getinfo(f).what ~= "C" then err() end
+            return f(...)
+        end
 
         -- Anti-Hook Execution Barrier
         -- Redefine sensitive functions locally to prevent global hooks from working AFTER initialization
@@ -71,6 +79,7 @@ function AntiTamper:apply(ast, pipeline)
         local getmetatable = _getmetatable
         local pcall = _pcall
         local type = _type
+        local error = _error
 
             -- SAFE getupvalue loop for LuaU compatibility
             local has_upvalue = false
